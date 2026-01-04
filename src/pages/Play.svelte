@@ -1,17 +1,30 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Button from '$lib/components/ui/button/button.svelte';
+	import { listInstances, launchInstance } from '$lib/helpers/instances';
+	import { Button } from "$lib/components/ui/button/index.js";
+	import { Card } from "$lib/components/ui/card/index.js";
+	import { CardContent } from "$lib/components/ui/card/index.js";
+	import { CardHeader } from "$lib/components/ui/card/index.js";
+	import { CardTitle } from "$lib/components/ui/card/index.js";
+	import { Select } from "$lib/components/ui/select/index.js";
+	import type { Account } from '$lib/types';
+
+	let { account }: { account: Account } = $props();
 
 	const assets = import.meta.glob('/src/assets/*.png', { eager: true, query: '?url', import: 'default' });
 	let currentImageIndex = $state(0);
 	let backgroundImages = $state<string[]>([]);
+	let instances = $state<string[]>([]);
+	let selectedInstance = $state('');
 
-	let selectedVersion = '1.21.11';
-
-	onMount(() => {
+	onMount(async () => {
 		const assetUrls = Object.values(assets);
 		backgroundImages = assetUrls.filter((url): url is string => typeof url === 'string');
 		randomizeImage();
+		instances = await listInstances();
+		if (instances.length > 0) {
+			selectedInstance = instances[0];
+		}
 	});
 
 	function randomizeImage() {
@@ -19,100 +32,51 @@
 			currentImageIndex = Math.floor(Math.random() * backgroundImages.length);
 		}
 	}
+
+	async function handleLaunch() {
+		if (!selectedInstance || !account) return;
+		await launchInstance(selectedInstance, account);
+	}
 </script>
 
-<div class="play-content">
+<div class="flex flex-col flex-1 p-6 gap-6">
 	<!-- Hero / Background Area -->
-	<div class="hero-area" onclick={randomizeImage}>
+	<button onclick={randomizeImage} class="w-full h-80 rounded-xl overflow-hidden relative hover:scale-[1.01] transition-transform cursor-pointer">
 		{#if backgroundImages[currentImageIndex]}
 			<img
 				src={backgroundImages[currentImageIndex]}
 				alt="Minecraft screenshot"
-				class="hero-image"
+				class="w-full h-full object-cover"
 			/>
 		{:else}
-			<div class="hero-placeholder"></div>
+			<div class="w-full h-full bg-gradient-to-br from-green-200 to-slate-400"></div>
 		{/if}
-	</div>
+	</button>
 
-	<!-- Version Selector -->
-	<div class="version-selector">
-		<span class="version-text">{selectedVersion}</span>
-		<div class="dropdown-arrow">▼</div>
-	</div>
-
-	<!-- Launch Button -->
-	<Button class="launch-button" size="lg">LAUNCH</Button>
+	{#if instances.length > 0}
+		<Card class="max-w-md mx-auto w-full">
+			<CardHeader>
+				<CardTitle>Select Instance</CardTitle>
+			</CardHeader>
+			<CardContent class="space-y-4">
+				<div class="space-y-2">
+					<label for="instance-select" class="text-sm font-medium">Instance</label>
+					<Select value={selectedInstance} id="instance-select">
+						{#each instances as instance}
+							<option value={instance}>{instance}</option>
+						{/each}
+					</Select>
+				</div>
+				<Button onclick={handleLaunch} class="w-full" size="lg" disabled={!selectedInstance}>
+					PLAY
+				</Button>
+			</CardContent>
+		</Card>
+	{:else}
+		<Card class="max-w-md mx-auto w-full">
+			<CardContent class="p-8 text-center">
+				<p class="text-muted-foreground">No instances found. Go to the Install page to create one!</p>
+			</CardContent>
+		</Card>
+	{/if}
 </div>
-
-<style>
-	.play-content {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		padding: 24px;
-		gap: 32px;
-	}
-
-	.hero-area {
-		width: 100%;
-		height: 300px;
-		border-radius: 12px;
-		overflow: hidden;
-		cursor: pointer;
-		transition: transform 0.2s ease;
-		position: relative;
-	}
-
-	.hero-area:hover {
-		transform: scale(1.01);
-	}
-
-	.hero-image {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
-
-	.hero-placeholder {
-		width: 100%;
-		height: 100%;
-		background: linear-gradient(135deg, #a8d5ba 0%, #6b8e9e 100%);
-	}
-
-	.version-selector {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 16px 32px;
-		background: #f5f5f5;
-		border-radius: 12px;
-		border: 2px solid #d1d1d1d;
-		cursor: pointer;
-		transition: background 0.2s ease;
-	}
-
-	.version-selector:hover {
-		background: #e8e8e8;
-	}
-
-	.version-text {
-		font-size: 24px;
-		font-weight: 600;
-		color: #1a1a1a;
-	}
-
-	.dropdown-arrow {
-		font-size: 16px;
-		color: #666666;
-	}
-
-	.launch-button {
-		width: 240px;
-		height: 56px;
-		font-size: 18px;
-		font-weight: 700;
-		letter-spacing: 1px;
-	}
-</style>

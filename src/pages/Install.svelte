@@ -3,13 +3,13 @@
 	import { installInstance } from '$lib/helpers/instances';
 	import { setupInstallListeners } from '$lib/helpers/events';
 	import { fetchVersionManifest, filterVersions, type VersionEntry } from '$lib/helpers/versions';
-	import Select from '$lib/components/ui/select/select.svelte';
-	import Button from '$lib/components/ui/button/button.svelte';
-	import Card from '$lib/components/ui/card/card.svelte';
-	import CardContent from '$lib/components/ui/card/card-content.svelte';
-	import CardHeader from '$lib/components/ui/card/card-header.svelte';
-	import CardTitle from '$lib/components/ui/card/card-title.svelte';
-	import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
+	import { Select } from "$lib/components/ui/select/index.js";
+	import { Button } from "$lib/components/ui/button/index.js";
+	import { Card } from "$lib/components/ui/card/index.js";
+	import { CardContent } from "$lib/components/ui/card/index.js";
+	import { CardHeader } from "$lib/components/ui/card/index.js";
+	import { CardTitle } from "$lib/components/ui/card/index.js";
+	import { Checkbox } from "$lib/components/ui/checkbox/index.js";
 
 	let allVersions = $state<VersionEntry[]>([]);
 	let filteredVersions = $derived.by(

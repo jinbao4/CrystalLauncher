@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Account } from '$lib/types';
+	import "./app.css"
 
 	let { children, currentLocation, navigate, account } = $props();
 
@@ -104,7 +104,7 @@
 	.nav-button {
 		padding: 8px 20px;
 		border-radius: 9999px;
-		border: 2px solid #d1d1d1d;
+		border: 2px solid #d1d1d1;
 		background: #ffffff;
 		color: #1a1a1a;
 		font-size: 13px;

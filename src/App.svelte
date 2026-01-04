@@ -35,21 +35,25 @@
 		const handlePopState = () => {
 			currentLocation = window.location.pathname;
 		};
+
 		window.addEventListener('popstate', handlePopState);
+
 		return () => window.removeEventListener('popstate', handlePopState);
 	});
 </script>
 
 {#if isLoading}
-	<div class="loading">
-		<div class="spinner"></div>
-	</div>
+	<div class="loading"><div class="spinner"></div></div>
 {:else if !account}
 	<Login />
 {:else}
-	<Layout {currentLocation} {navigate} account={account}>
+	<Layout
+		currentLocation={currentLocation}
+		navigate={navigate}
+		account={account}
+	>
 		{#if currentLocation === '/' || currentLocation === ''}
-			<Play />
+			<Play account={account} />
 		{:else if currentLocation === '/install'}
 			<Install />
 		{/if}

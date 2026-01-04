@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { startLogin, setupAuthListeners } from '$lib/helpers/auth';
 	import type { Account } from '$lib/types';
+	import Button from '$lib/components/ui/button/button.svelte';
 
 	let isLoggedIn = $state(false);
 	let isLoading = $state(true);
@@ -55,7 +56,10 @@
 			<h1 class="login-title">Minecraft Launcher</h1>
 			<p class="login-subtitle">Sign in with your Microsoft account to play</p>
 
-			<button onclick={handleLogin} class="microsoft-button">
+			<Button 
+				onclick={handleLogin}
+				class="flex items-center justify-center gap-3 w-full py-[14px] px-5 font-semibold bg-[#2f2f2f] text-white border-2 border-transparent rounded-lg text-[14px] hover:bg-[#1a1a1a] transition-all"
+			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					width="20"
@@ -68,7 +72,7 @@
 					<rect x="11" y="11" width="9" height="9" fill="#ffb900" />
 				</svg>
 				<span>Sign in with Microsoft</span>
-			</button>
+			</Button>
 		</div>
 	{/if}
 </div>
@@ -150,31 +154,5 @@
 		font-size: 14px;
 		color: #666666;
 		margin: 0 0 32px 0;
-	}
-
-	.microsoft-button {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 12px;
-		width: 100%;
-		padding: 14px 20px;
-		background: #2f2f2f;
-		color: #ffffff;
-		border: 2px solid transparent;
-		border-radius: 8px;
-		font-size: 14px;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.2s ease;
-	}
-
-	.microsoft-button:hover {
-		background: #1a1a1a;
-		transform: translateY(-2px);
-	}
-
-	.microsoft-button:active {
-		transform: translateY(0);
 	}
 </style>
