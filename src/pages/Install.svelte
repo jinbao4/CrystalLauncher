@@ -11,8 +11,6 @@
 	import CardTitle from '$lib/components/ui/card/card-title.svelte';
 	import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
 
-	let { account, status, isLoggingIn, onLogin, onLogout } = $props();
-
 	let allVersions = $state<VersionEntry[]>([]);
 	let filteredVersions = $derived.by(
 		() => filterVersions(allVersions, searchQuery, includeSnapshots)
@@ -83,154 +81,192 @@
 	}
 </script>
 
-<div class="flex justify-between items-center mb-4">
-	<div class="flex-1">
-		<p>Status: <b>{status || installStatus}</b></p>
-	</div>
+<div class="install-content">
+	{#if isLoading}
+		<Card>
+			<CardContent class="p-4">
+				<p>Loading versions...</p>
+			</CardContent>
+		</Card>
+	{:else}
+		<div class="install-layout">
+			<div class="install-form">
+				<Card>
+					<CardHeader>
+						<CardTitle>Installations</CardTitle>
+					</CardHeader>
+					<CardContent class="space-y-4">
+						<div class="space-y-2">
+							<label for="instance-name" class="block text-sm font-medium">Instance Name</label>
+							<input
+								id="instance-name"
+								type="text"
+								bind:value={instanceName}
+								placeholder="Enter instance name"
+								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+								disabled={isInstalling}
+							/>
+						</div>
 
-	{#if account}
-		<div class="flex items-center gap-2">
-			<img
-				src="https://mc-heads.net/avatar/{account.name}"
-				alt="Avatar for {account.name}"
-				width="32"
-				height="32"
-				class="rounded-full"
-			/>
-			<div class="flex flex-col items-end">
-				<span>{account.name}</span>
-				<Button onclick={onLogout} variant="outline" size="sm">Log Out</Button>
+						<div class="flex items-center gap-2">
+							<Checkbox
+								checked={includeSnapshots}
+								id="snapshots"
+								onchange={(e) => {
+									const target = e.target as HTMLInputElement | null;
+									includeSnapshots = target?.checked ?? false;
+								}}
+							/>
+							<label for="snapshots" class="text-sm font-medium">Include Snapshots</label>
+						</div>
+
+						<div class="space-y-2">
+							<label for="search" class="block text-sm font-medium">Search Versions</label>
+							<input
+								id="search"
+								type="text"
+								bind:value={searchQuery}
+								placeholder="Search versions..."
+								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+								disabled={isInstalling}
+							/>
+						</div>
+
+						<div class="space-y-2">
+							<label for="version-select" class="block text-sm font-medium">Minecraft Version</label>
+							<Select
+								value={selectedVersion}
+								onchange={handleVersionChange}
+								disabled={isInstalling}
+							>
+								{#each filteredVersions as version}
+									<option value={version.id}>{version.id}</option>
+								{/each}
+							</Select>
+						</div>
+
+						<Button
+							onclick={handleInstall}
+							disabled={isInstalling || !instanceName.trim() || !selectedVersion}
+							class="w-full"
+						>
+							{isInstalling ? 'Installing...' : 'Install'}
+						</Button>
+
+						{#if installStatus}
+							<div class="p-3 rounded-md bg-muted text-sm">
+								{installStatus}
+							</div>
+						{/if}
+					</CardContent>
+				</Card>
+			</div>
+
+			<div class="versions-list">
+				<Card>
+					<CardHeader>
+						<CardTitle>Available Versions</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div class="max-h-96 overflow-y-auto space-y-2">
+							{#each filteredVersions as version (version.id)}
+								<button
+									class="version-btn"
+									onclick={() => (selectedVersion = version.id)}
+									disabled={isInstalling}
+									class:active={selectedVersion === version.id}
+								>
+									<div class="flex flex-col items-start">
+										<span class="font-medium">{version.id}</span>
+										<span class="text-xs text-muted-foreground">{version.type}</span>
+									</div>
+									{#if selectedVersion === version.id}
+										<span class="text-sm text-primary">✓</span>
+									{/if}
+								</button>
+							{/each}
+
+							{#if filteredVersions.length === 0}
+								<p class="text-center text-muted-foreground text-sm p-4">
+									No versions found matching your search.
+								</p>
+							{/if}
+						</div>
+					</CardContent>
+				</Card>
 			</div>
 		</div>
-	{:else}
-		<Button onclick={onLogin} disabled={isLoggingIn}>
-			{isLoggingIn ? 'Authenticating...' : 'Login with Microsoft'}
-		</Button>
 	{/if}
 </div>
 
-<h1 class="text-3xl font-bold mb-6">Install Minecraft</h1>
+<style lang="css">
+	.install-content {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		padding: 24px;
+		overflow: hidden;
+	}
 
-{#if isLoading}
-	<Card>
-		<CardContent class="p-4">
-			<p>Loading versions...</p>
-		</CardContent>
-	</Card>
-{:else}
-	<div class="flex gap-4">
-		<div class="flex-1 space-y-4">
-			<Card>
-				<CardHeader>
-					<CardTitle>Installations</CardTitle>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					<div class="space-y-2">
-						<label for="instance-name" class="block text-sm font-medium">Instance Name</label>
-						<input
-							id="instance-name"
-							type="text"
-							bind:value={instanceName}
-							placeholder="Enter instance name"
-							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-							disabled={isInstalling}
-						/>
-					</div>
+	.install-layout {
+		display: flex;
+		gap: 16px;
+		height: 100%;
+		overflow: hidden;
+	}
 
-					<div class="flex items-center gap-2">
-						<Checkbox
-							checked={includeSnapshots}
-							id="snapshots"
-							onchange={(e) => {
-								const target = e.target as HTMLInputElement | null;
-								includeSnapshots = target?.checked ?? false;
-							}}
-						/>
-						<label for="snapshots" class="text-sm font-medium">Include Snapshots</label>
-					</div>
+	.install-form,
+	.versions-list {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
 
-					<div class="space-y-2">
-						<label for="search" class="block text-sm font-medium">Search Versions</label>
-						<input
-							id="search"
-							type="text"
-							bind:value={searchQuery}
-							placeholder="Search versions..."
-							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-							disabled={isInstalling}
-						/>
-					</div>
+	.install-form :global(.card),
+	.versions-list :global(.card) {
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+	}
 
-					<div class="space-y-2">
-						<label for="version-select" class="block text-sm font-medium">Minecraft Version</label>
-						<Select
-							value={selectedVersion}
-							onchange={handleVersionChange}
-							disabled={isInstalling}
-						>
-							{#each filteredVersions as version}
-								<option value={version.id}>{version.id}</option>
-							{/each}
-						</Select>
-					</div>
+	.install-form :global(.card-content),
+	.versions-list :global(.card-content) {
+		flex: 1;
+		overflow-y: auto;
+	}
 
-					<Button
-						onclick={handleInstall}
-						disabled={isInstalling || !instanceName.trim() || !selectedVersion}
-						class="w-full"
-					>
-						{isInstalling ? 'Installing...' : 'Install'}
-					</Button>
+	.version-btn {
+		width: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 8px;
+		border-radius: 6px;
+		border: 1px solid hsl(var(--border));
+		background: transparent;
+		color: hsl(var(--foreground));
+		transition: all 0.2s ease;
+	}
 
-					{#if installStatus}
-						<div class="p-3 rounded-md bg-muted text-sm">
-							{installStatus}
-						</div>
-					{/if}
-				</CardContent>
-			</Card>
-		</div>
+	.version-btn:hover:not(:disabled) {
+		background: hsl(var(--accent));
+	}
 
-		<div class="flex-1">
-			<Card>
-				<CardHeader>
-					<CardTitle>Available Versions</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div class="max-h-96 overflow-y-auto space-y-2">
-						{#each filteredVersions as version (version.id)}
-							<button
-								class="w-full flex items-center justify-between p-2 rounded-md border border-border hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-								onclick={() => (selectedVersion = version.id)}
-								disabled={isInstalling}
-								class:active={selectedVersion === version.id}
-							>
-								<div class="flex flex-col items-start">
-									<span class="font-medium">{version.id}</span>
-									<span class="text-xs text-muted-foreground">{version.type}</span>
-								</div>
-								{#if selectedVersion === version.id}
-									<span class="text-sm text-primary">✓</span>
-								{/if}
-							</button>
-						{/each}
+	.version-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
 
-						{#if filteredVersions.length === 0}
-							<p class="text-center text-muted-foreground text-sm p-4">
-								No versions found matching your search.
-							</p>
-						{/if}
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-	</div>
-{/if}
-
-<style>
-	.active {
+	.version-btn.active {
 		background-color: hsl(var(--primary));
 		color: hsl(var(--primary-foreground));
 		border-color: hsl(var(--primary));
+	}
+
+	@media (max-width: 768px) {
+		.install-layout {
+			flex-direction: column;
+		}
 	}
 </style>
