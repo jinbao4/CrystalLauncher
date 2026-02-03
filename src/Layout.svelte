@@ -1,5 +1,6 @@
 <script lang="ts">
 	import "./app.css"
+	import Header from "$lib/components/Header.svelte";
 
 	let { children, currentLocation, navigate, account } = $props();
 
@@ -15,157 +16,82 @@
 		if (tab === 'PLAY') navigate('/');
 		if (tab === 'INSTALLATIONS') navigate('/install');
 	}
+
+	let containerRef = $state<HTMLElement | null>(null);
+	let containerWidth = $state(1200);
+
+	$effect(() => {
+		if (!containerRef) return;
+		
+		const observer = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				containerWidth = entry.contentRect.width;
+			}
+		});
+		
+		observer.observe(containerRef);
+		return () => observer.disconnect();
+	});
+
+	// Breakpoints for adaptive layout
+	const showFullTitle = $derived(containerWidth > 900);
+	const showShortTitle = $derived(containerWidth > 700 && containerWidth <= 900);
+	const compactHeader = $derived(containerWidth <= 800);
 </script>
 
-<div class="launcher-container">
-	<div class="launcher-window">
+<div class="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-300 font-sans">
+	<div 
+		bind:this={containerRef}
+		class="flex h-full w-full flex-col overflow-hidden bg-white"
+	>
 		<!-- Top Bar -->
-		<div class="top-bar">
-			<div class="top-bar-left">
-				<span class="launcher-title">Minecraft Launcher</span>
+		<div class="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 bg-neutral-100 px-4 py-3 sm:px-6">
+			<!-- Left: Title (shrinks/hides first) -->
+			<div class="flex min-w-0 shrink items-center">
+				{#if showFullTitle}
+					<span class="truncate text-base font-semibold text-neutral-900">
+						Crystal Launcher
+					</span>
+				{:else if showShortTitle}
+					<span class="truncate text-base font-semibold text-neutral-900">
+						Crystal
+					</span>
+				{:else}
+					<!-- Icon only at smallest sizes -->
+					<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900 text-xs font-bold text-white">
+						C
+					</div>
+				{/if}
 			</div>
 
-			<div class="top-bar-center">
+			<!-- Center: Nav tabs (always visible, shrinks padding if needed) -->
+			<div class="flex shrink-0 items-center gap-1 sm:gap-2">
 				{#each tabs as tab}
 					<button
-						class="nav-button"
-						class:active={getActiveTab() === tab}
+						class="rounded-full border-2 px-3 py-1.5 text-xs font-semibold transition-all sm:px-5 sm:py-2 sm:text-sm
+							{getActiveTab() === tab 
+								? 'border-neutral-900 bg-neutral-900 text-white' 
+								: 'border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-200'}"
 						onclick={() => handleTabClick(tab)}
 					>
-						{tab}
+						{#if compactHeader && tab === 'INSTALLATIONS'}
+							INSTALLS
+						{:else}
+							{tab}
+						{/if}
 					</button>
 				{/each}
 			</div>
 
-			<div class="top-bar-right">
-				<div class="user-status">
-					<span>playing as <b>{account?.name}</b></span>
-					<img
-						src={`https://mc-heads.net/avatar/${account?.name}`}
-						alt={`${account?.name}'s avatar`}
-						class="user-avatar"
-					/>
-				</div>
+			<!-- Right: Account (shrinks but stays visible) -->
+			<div class="flex min-w-0 shrink items-center justify-end">
+				<Header {account} />
 			</div>
 		</div>
 
 		<!-- Main Content -->
-		<div class="main-content">
+		<div class="flex flex-1 flex-col overflow-auto">
 			{@render children()}
 		</div>
 	</div>
 </div>
-
-<style>
-	.launcher-container {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 100vw;
-		height: 100vh;
-		background: linear-gradient(135deg, #e8e8e8 0%, #d4d4d4 100%);
-		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-	}
-
-	.launcher-window {
-		width: 100%;
-		height: 100%;
-		background: #ffffff;
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-		position: relative;
-	}
-
-	.top-bar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 16px 24px;
-		background: #f5f5f5;
-		border-bottom: 1px solid #e0e0e0;
-	}
-
-	.top-bar-left {
-		flex: 1;
-	}
-
-	.launcher-title {
-		font-size: 16px;
-		font-weight: 600;
-		color: #1a1a1a;
-	}
-
-	.top-bar-center {
-		display: flex;
-		gap: 8px;
-	}
-
-	.nav-button {
-		padding: 8px 20px;
-		border-radius: 9999px;
-		border: 2px solid #d1d1d1;
-		background: #ffffff;
-		color: #1a1a1a;
-		font-size: 13px;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.2s ease;
-	}
-
-	.nav-button:hover {
-		background: #e8e8e8;
-	}
-
-	.nav-button.active {
-		background: #1a1a1a;
-		color: #ffffff;
-	}
-
-	.top-bar-right {
-		flex: 1;
-		display: flex;
-		justify-content: flex-end;
-	}
-
-	.user-status {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		font-size: 13px;
-		color: #666666;
-	}
-
-	.user-status b {
-		color: #1a1a1a;
-	}
-
-	.user-avatar {
-		width: 32px;
-		height: 32px;
-		border-radius: 8px;
-		object-fit: cover;
-	}
-
-	.main-content {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-	}
-
-	@media (max-width: 950px) {
-		.top-bar {
-			flex-direction: column;
-			gap: 12px;
-		}
-
-		.top-bar-left,
-		.top-bar-right {
-			flex: 0;
-		}
-
-		.user-status span {
-			font-size: 11px;
-		}
-	}
-</style>
