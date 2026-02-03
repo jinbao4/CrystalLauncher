@@ -7,7 +7,6 @@ mod core;
 mod utils;
 
 use models::fs::LauncherPaths;
-use core::discord;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -22,12 +21,10 @@ pub fn run() {
                 )?;
             }
             let root = app.path().app_data_dir().expect("failed to resolve app data dir");
-            let launcher_paths = LauncherPaths::new(root);
-            app.manage(Mutex::new(launcher_paths));
-            discord::init();
-            Ok(())
-        })
-            
+                let launcher_paths = LauncherPaths::new(root);
+                app.manage(Mutex::new(launcher_paths));
+                Ok(())
+            })
             .invoke_handler(tauri::generate_handler![
                 commands::list_instances,
                 commands::create_instance,
