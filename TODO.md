@@ -14,7 +14,7 @@
   - [ ] Save multiple accounts safely
   - [ ] Switch users without re-logging
   - [ ] Auto-refresh expired tokens
-        
+
 ### Frontend
 - [ ] Settings Page (Java path, Resolution, RAM)
 - [ ] Real-time Progress Bar (show MB/s)
