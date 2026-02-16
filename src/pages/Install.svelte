@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { installInstance } from '$lib/helpers/instances';
 	import { setupInstallListeners } from '$lib/helpers/events';
-	import { fetchVersionManifest, filterVersions, type VersionEntry } from '$lib/helpers/versions';
+	import { fetchVersionManifest, filterVersions } from '$lib/helpers/versions';
+	import type { VersionEntry } from '$lib/types';
 	import { Select } from "$lib/components/ui/select/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Card } from "$lib/components/ui/card/index.js";
