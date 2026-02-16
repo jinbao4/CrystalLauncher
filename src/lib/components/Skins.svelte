@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { onMount } from "svelte";
-    import * as skinview3d from "skinview3d";
+    import { onMount } from 'svelte';
+    import * as skinview3d from 'skinview3d';
 
     let { username, width = 300, height = 400 } = $props();
 

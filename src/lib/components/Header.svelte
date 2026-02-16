@@ -1,7 +1,7 @@
 <script lang="ts">
-    import Skins from "./Skins.svelte";
-    import { Settings, X } from "lucide-svelte";
-    import { fly, fade } from "svelte/transition";
+    import Skins from './Skins.svelte';
+    import { Settings, X } from 'lucide-svelte';
+    import { fly, fade } from 'svelte/transition';
 
     let { account, foo } = $props();
     let loggedIn = $derived(account != null);
