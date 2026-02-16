@@ -116,26 +116,37 @@ pub fn download_libraries(libraries_root: &Path, version_json: &str) -> Result<(
     let manifest: VersionManifest =
         serde_json::from_str(version_json).map_err(|e| e.to_string())?;
 
+    println!("[Download] Total libraries in manifest: {}", manifest.libraries.len());
+    
     manifest.libraries.par_iter().for_each(|lib| {
-        if is_library_allowed(&lib.rules) {
-            if let Some(artifact) = &lib.downloads.artifact {
-                let _ =
-                    download_file_if_needed(&artifact.url, &libraries_root.join(&artifact.path));
-            }
+        match &lib.downloads.artifact {
+            Some(artifact) => {
+                let lib_name = &artifact.path;
+                if is_library_allowed(&lib.rules) {
+                    println!("[Download] Downloading allowed: {}", lib_name);
+                    let _ =
+                        download_file_if_needed(&artifact.url, &libraries_root.join(&artifact.path));
+                } else {
+                    println!("[Download] Skipping (rules): {}", lib_name);
+                }
 
-            if let Some(natives_map) = &lib.natives {
-                let os_key = get_os_key();
+                if let Some(natives_map) = &lib.natives {
+                    let os_key = get_os_key();
 
-                if let Some(classifier_key) = natives_map.get(os_key) {
-                    if let Some(classifiers) = &lib.downloads.classifiers {
-                        if let Some(artifact) = classifiers.get(classifier_key) {
-                            let _ = download_file_if_needed(
-                                &artifact.url,
-                                &libraries_root.join(&artifact.path),
-                            );
+                    if let Some(classifier_key) = natives_map.get(os_key) {
+                        if let Some(classifiers) = &lib.downloads.classifiers {
+                            if let Some(artifact) = classifiers.get(classifier_key) {
+                                let _ = download_file_if_needed(
+                                    &artifact.url,
+                                    &libraries_root.join(&artifact.path),
+                                );
+                            }
                         }
                     }
                 }
+            }
+            None => {
+                println!("[Download] Library has no artifact entry");
             }
         }
     });

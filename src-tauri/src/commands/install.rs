@@ -1,7 +1,6 @@
 use std::sync::Mutex;
 use tauri::{Emitter, State};
 
-// Import our new professional modules
 use crate::models::fs::LauncherPaths;
 use crate::models::mc::Manifest;
 use crate::utils;
@@ -15,6 +14,7 @@ pub fn install_instance(
 ) -> Result<(), String> {
     let app_handle = app.clone();
     let name_clone = instance_name.clone();
+    let version_clone = version.clone();
 
     let (instances_dir, root_dir) = {
         let p = paths.lock().map_err(|e| e.to_string())?;
@@ -28,6 +28,7 @@ pub fn install_instance(
             let assets_root = root_dir.join("assets");
 
             let _ = app_handle.emit("install-status", "Fetching Manifest...");
+
             let manifest_url = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
 
             let manifest: Manifest = reqwest::blocking::get(manifest_url)
@@ -38,8 +39,8 @@ pub fn install_instance(
             let version_entry = manifest
                 .versions
                 .iter()
-                .find(|v| v.id == version)
-                .ok_or_else(|| format!("Version {} not found", version))?;
+                .find(|v| v.id == version_clone)
+                .ok_or_else(|| format!("Version {} not found", version_clone))?;
 
             let version_json_text = reqwest::blocking::get(&version_entry.url)
                 .map_err(|e| e.to_string())?

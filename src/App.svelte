@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import Layout from './Layout.svelte';
-	import Play from './pages/Play.svelte';
-	import Install from './pages/Install.svelte';
-	import Login from './pages/Login.svelte';
-	import { tryAutoLogin, setupAuthListeners } from '$lib/helpers/auth';
-	import type { Account } from '$lib/types';
+	import { onMount } from "svelte";
+	import Layout from "./Layout.svelte";
+	import Play from "./pages/Play.svelte";
+	import Install from "./pages/Install.svelte";
+	import Login from "./pages/Login.svelte";
+	import { tryAutoLogin, setupAuthListeners } from "$lib/helpers/auth";
+	import type { Account } from "$lib/types";
 
 	let currentLocation = $state(window.location.pathname);
 	let account = $state<Account | null>(null);
@@ -20,14 +20,14 @@
 			},
 			() => {
 				account = null;
-			}
+			},
 		);
 
 		isLoading = false;
 	});
 
 	function navigate(location: string) {
-		window.history.pushState({}, '', location);
+		window.history.pushState({}, "", location);
 		currentLocation = location;
 	}
 
@@ -36,9 +36,9 @@
 			currentLocation = window.location.pathname;
 		};
 
-		window.addEventListener('popstate', handlePopState);
+		window.addEventListener("popstate", handlePopState);
 
-		return () => window.removeEventListener('popstate', handlePopState);
+		return () => window.removeEventListener("popstate", handlePopState);
 	});
 </script>
 
@@ -47,14 +47,10 @@
 {:else if !account}
 	<Login />
 {:else}
-	<Layout
-		currentLocation={currentLocation}
-		navigate={navigate}
-		account={account}
-	>
-		{#if currentLocation === '/' || currentLocation === ''}
-			<Play account={account} />
-		{:else if currentLocation === '/install'}
+	<Layout {currentLocation} {navigate} {account}>
+		{#if currentLocation === "/" || currentLocation === ""}
+			<Play {account} />
+		{:else if currentLocation === "/install"}
 			<Install />
 		{/if}
 	</Layout>

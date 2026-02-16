@@ -1,18 +1,7 @@
-export interface VersionEntry {
-	id: string;
-	type: string;
-	url: string;
-	time: string;
-	releaseTime: string;
-}
+import type { VersionEntry, VersionManifest } from '$lib/types';
 
-export interface VersionManifest {
-	latest: {
-		release: string;
-		snapshot: string;
-	};
-	versions: VersionEntry[];
-}
+// Re-export types for backwards compatibility
+export type { VersionEntry, VersionManifest };
 
 export async function fetchVersionManifest(): Promise<VersionManifest> {
 	const response = await fetch('https://launchermeta.mojang.com/mc/game/version_manifest.json');

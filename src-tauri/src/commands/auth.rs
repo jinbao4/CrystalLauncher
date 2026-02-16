@@ -5,10 +5,9 @@ use reqwest::Client;
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
-// --- CONFIGURATION FROM YOUR FRIEND'S CODE ---
-const CLIENT_ID: &str = "00000000402b5328"; // Official Launcher ID
-const REDIRECT_URI: &str = "https://login.live.com/oauth20_desktop.srf"; // Desktop Redirect
-const SCOPES: &str = "service::user.auth.xboxlive.com::MBI_SSL"; // The Magic Scope
+const CLIENT_ID: &str = "00000000402b5328"; //
+const REDIRECT_URI: &str = "https://login.live.com/oauth20_desktop.srf"; 
+const SCOPES: &str = "service::user.auth.xboxlive.com::MBI_SSL";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MinecraftAccount {
@@ -29,7 +28,6 @@ struct OAuthResponse {
 pub async fn start_login(app: AppHandle) -> Result<(), String> {
     let app_handle = app.clone();
     
-    // 1. Construct Auth URL exactly like the reference code
     let auth_url = format!(
         "https://login.live.com/oauth20_authorize.srf?client_id={}&response_type=code&redirect_uri={}&scope={}&prompt=select_account",
         CLIENT_ID, REDIRECT_URI, SCOPES
@@ -41,14 +39,12 @@ pub async fn start_login(app: AppHandle) -> Result<(), String> {
         .on_navigation(move |url| {
             let url_str = url.as_str();
             
-            // 2. Intercept the Official Desktop Redirect
             if url_str.starts_with(REDIRECT_URI) {
                 if let Ok(parsed_url) = Url::parse(url_str) {
                     if let Some((_, code)) = parsed_url.query_pairs().find(|(key, _)| key == "code") {
                         let code_clean = code.to_string();
                         let handle = app_handle.clone();
 
-                        // Close window immediately
                         if let Some(w) = handle.get_webview_window("auth") { let _ = w.close(); }
                         let _ = handle.emit("install-status", "Authenticating...");
                         
@@ -208,7 +204,7 @@ async fn perform_minecraft_login(client: &Client, msa_token: &str) -> Result<Min
         uuid,
         name,
         mc_token: mc_token.to_string(),
-        refresh_token: String::new(), // Filled by caller
+        refresh_token: String::new(), // filled by caller
         expires_at: now + expires_in,
     })
 }
