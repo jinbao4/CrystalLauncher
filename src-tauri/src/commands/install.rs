@@ -2,35 +2,43 @@ use std::sync::Mutex;
 use tauri::{Emitter, State};
 
 use crate::models::fs::LauncherPaths;
+use crate::models::instance::InstallState;
 use crate::models::mc::Manifest;
 use crate::utils;
+use crate::commands::instances::{get_or_create_instance, persist_instance};
 
 #[tauri::command]
 pub fn install_instance(
-    instance_name: String,
     version: String,
     paths: State<'_, Mutex<LauncherPaths>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let app_handle = app.clone();
-    let name_clone = instance_name.clone();
-    let version_clone = version.clone();
-
     let (instances_dir, root_dir) = {
         let p = paths.lock().map_err(|e| e.to_string())?;
         (p.instances.clone(), p.root.clone())
     };
+    let mut instance = get_or_create_instance(&instances_dir, &version)?;
+
+    if instance.install_state == InstallState::Installed {
+        let _ = app.emit("install-status", "Already installed.");
+        return Ok(());
+    }
+
+    instance.install_state = InstallState::Installing;
+    persist_instance(&instances_dir, &instance)?;
+
+    let app_handle = app.clone();
+    let version_clone = version.clone();
 
     std::thread::spawn(move || {
         let run_install = || -> Result<(), String> {
-            let instance_dir = instances_dir.join(&name_clone);
+            let instance_dir = instances_dir.join(&version_clone);
             let libraries_root = root_dir.join("libraries");
             let assets_root = root_dir.join("assets");
 
-            let _ = app_handle.emit("install-status", "Fetching Manifest...");
+            let _ = app_handle.emit("install-status", "Fetching manifest…");
 
             let manifest_url = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-
             let manifest: Manifest = reqwest::blocking::get(manifest_url)
                 .map_err(|e| e.to_string())?
                 .json()
@@ -40,7 +48,7 @@ pub fn install_instance(
                 .versions
                 .iter()
                 .find(|v| v.id == version_clone)
-                .ok_or_else(|| format!("Version {} not found", version_clone))?;
+                .ok_or_else(|| format!("Version '{}' not found in manifest", version_clone))?;
 
             let version_json_text = reqwest::blocking::get(&version_entry.url)
                 .map_err(|e| e.to_string())?
@@ -51,21 +59,33 @@ pub fn install_instance(
             std::fs::write(instance_dir.join("version.json"), &version_json_text)
                 .map_err(|e| e.to_string())?;
 
-            let _ = app_handle.emit("install-status", "Downloading Client...");
+            let _ = app_handle.emit("install-status", "Downloading client…");
             utils::download_client_jar(&instance_dir, &version_json_text)?;
 
-            let _ = app_handle.emit("install-status", "Downloading Libraries...");
+            let _ = app_handle.emit("install-status", "Downloading libraries…");
             utils::download_libraries(&libraries_root, &version_json_text)?;
 
-            let _ = app_handle.emit("install-status", "Downloading Assets...");
+            let _ = app_handle.emit("install-status", "Downloading assets…");
             utils::download_assets(&assets_root, &version_json_text)?;
 
-            let _ = app_handle.emit("install-status", "Installation Complete!");
             Ok(())
         };
 
-        if let Err(e) = run_install() {
-            let _ = app_handle.emit("install-error", e);
+        match run_install() {
+            Ok(()) => {
+                if let Ok(mut inst) = get_or_create_instance(&instances_dir, &version_clone) {
+                    inst.install_state = InstallState::Installed;
+                    let _ = persist_instance(&instances_dir, &inst);
+                }
+                let _ = app_handle.emit("install-status", "Installation Complete!");
+            }
+            Err(e) => {
+                if let Ok(mut inst) = get_or_create_instance(&instances_dir, &version_clone) {
+                    inst.install_state = InstallState::Failed;
+                    let _ = persist_instance(&instances_dir, &inst);
+                }
+                let _ = app_handle.emit("install-error", e);
+            }
         }
     });
 
