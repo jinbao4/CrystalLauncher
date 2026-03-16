@@ -5,7 +5,7 @@ use reqwest::Client;
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
-const CLIENT_ID: &str = "00000000402b5328"; //
+const CLIENT_ID: &str = "00000000402b5328"; 
 const REDIRECT_URI: &str = "https://login.live.com/oauth20_desktop.srf"; 
 const SCOPES: &str = "service::user.auth.xboxlive.com::MBI_SSL";
 
@@ -73,7 +73,6 @@ pub async fn start_login(app: AppHandle) -> Result<(), String> {
 pub async fn refresh_login(refresh_token: String) -> Result<MinecraftAccount, String> {
     let client = Client::new();
     
-    // Using explicit params map like the reference
     let params = [
         ("client_id", CLIENT_ID),
         ("refresh_token", &refresh_token),
