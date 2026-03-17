@@ -23,7 +23,7 @@ pub fn get_classpath_separator() -> &'static str {
     }
 }
 
-pub async fn download_file_if_needed(url: &str, path: &Path) -> Result<(), String> {
+pub fn download_file_if_needed(url: &str, path: &Path) -> Result<(), String> {
     if path.exists() {
         if let Ok(meta) = std::fs::metadata(path) {
             if meta.len() > 0 {
@@ -32,12 +32,11 @@ pub async fn download_file_if_needed(url: &str, path: &Path) -> Result<(), Strin
         }
     }
 
-    let client = reqwest::Client::new();
+    let client = reqwest::blocking::Client::new();
     let bytes = client.get(url)
-        .send().await
+        .send()
         .map_err(|e| e.to_string())?
         .bytes()
-        .await
         .map_err(|e| e.to_string())?;
 
     if let Some(parent) = path.parent() {
@@ -47,16 +46,16 @@ pub async fn download_file_if_needed(url: &str, path: &Path) -> Result<(), Strin
     Ok(())
 }
 
-pub async fn download_client_jar(instance_dir: &Path, version_json: &str) -> Result<(), String> {
+pub fn download_client_jar(instance_dir: &Path, version_json: &str) -> Result<(), String> {
     let manifest: VersionManifest =
         serde_json::from_str(version_json).map_err(|e| e.to_string())?;
     download_file_if_needed(
         &manifest.downloads.client.url,
         &instance_dir.join("client.jar"),
-    ).await
+    )
 }
 
-pub async fn download_assets(assets_root: &Path, version_json: &str) -> Result<(), String> {
+pub fn download_assets(assets_root: &Path, version_json: &str) -> Result<(), String> {
     let manifest: VersionManifest =
         serde_json::from_str(version_json).map_err(|e| e.to_string())?;
     let objects_dir = assets_root.join("objects");
@@ -65,7 +64,7 @@ pub async fn download_assets(assets_root: &Path, version_json: &str) -> Result<(
     let index_path = assets_root
         .join("indexes")
         .join(format!("{}.json", manifest.asset_index.id));
-    download_file_if_needed(index_url, &index_path).await?;
+    download_file_if_needed(index_url, &index_path)?;
 
     let index_json = std::fs::read_to_string(index_path).map_err(|e| e.to_string())?;
     let asset_map: AssetMap = serde_json::from_str(&index_json).map_err(|e| e.to_string())?;
@@ -77,7 +76,7 @@ pub async fn download_assets(assets_root: &Path, version_json: &str) -> Result<(
             "https://resources.download.minecraft.net/{}/{}",
             hash_prefix, object.hash
         );
-        let _ = download_file_if_needed(&url, &path).await;
+        let _ = download_file_if_needed(&url, &path);
     }
     Ok(())
 }
@@ -114,7 +113,7 @@ fn get_os_key() -> &'static str {
     }
 }
 
-pub async fn download_libraries(libraries_root: &Path, version_json: &str) -> Result<(), String> {
+pub fn download_libraries(libraries_root: &Path, version_json: &str) -> Result<(), String> {
     let manifest: VersionManifest =
         serde_json::from_str(version_json).map_err(|e| e.to_string())?;
 
@@ -126,7 +125,7 @@ pub async fn download_libraries(libraries_root: &Path, version_json: &str) -> Re
                 let lib_name = &artifact.path;
                 if is_library_allowed(&lib.rules) {
                     println!("[Download] Downloading allowed: {}", lib_name);
-                    let _ = download_file_if_needed(&artifact.url, &libraries_root.join(&artifact.path)).await;
+                    let _ = download_file_if_needed(&artifact.url, &libraries_root.join(&artifact.path));
                 } else {
                     println!("[Download] Skipping (rules): {}", lib_name);
                 }
@@ -140,7 +139,7 @@ pub async fn download_libraries(libraries_root: &Path, version_json: &str) -> Re
                                 let _ = download_file_if_needed(
                                     &artifact.url,
                                     &libraries_root.join(&artifact.path),
-                                ).await;
+                                );
                             }
                         }
                     }
