@@ -1,5 +1,4 @@
 use crate::models::mc::{AssetMap, Rule, VersionManifest};
-use rayon::prelude::*;
 use std::path::Path;
 
 #[allow(dead_code)]
@@ -24,7 +23,7 @@ pub fn get_classpath_separator() -> &'static str {
     }
 }
 
-pub fn download_file_if_needed(url: &str, path: &Path) -> Result<(), String> {
+pub async fn download_file_if_needed(url: &str, path: &Path) -> Result<(), String> {
     if path.exists() {
         if let Ok(meta) = std::fs::metadata(path) {
             if meta.len() > 0 {
@@ -33,9 +32,12 @@ pub fn download_file_if_needed(url: &str, path: &Path) -> Result<(), String> {
         }
     }
 
-    let bytes = reqwest::blocking::get(url)
+    let client = reqwest::Client::new();
+    let bytes = client.get(url)
+        .send().await
         .map_err(|e| e.to_string())?
         .bytes()
+        .await
         .map_err(|e| e.to_string())?;
 
     if let Some(parent) = path.parent() {
@@ -45,16 +47,16 @@ pub fn download_file_if_needed(url: &str, path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub fn download_client_jar(instance_dir: &Path, version_json: &str) -> Result<(), String> {
+pub async fn download_client_jar(instance_dir: &Path, version_json: &str) -> Result<(), String> {
     let manifest: VersionManifest =
         serde_json::from_str(version_json).map_err(|e| e.to_string())?;
     download_file_if_needed(
         &manifest.downloads.client.url,
         &instance_dir.join("client.jar"),
-    )
+    ).await
 }
 
-pub fn download_assets(assets_root: &Path, version_json: &str) -> Result<(), String> {
+pub async fn download_assets(assets_root: &Path, version_json: &str) -> Result<(), String> {
     let manifest: VersionManifest =
         serde_json::from_str(version_json).map_err(|e| e.to_string())?;
     let objects_dir = assets_root.join("objects");
@@ -63,20 +65,20 @@ pub fn download_assets(assets_root: &Path, version_json: &str) -> Result<(), Str
     let index_path = assets_root
         .join("indexes")
         .join(format!("{}.json", manifest.asset_index.id));
-    download_file_if_needed(index_url, &index_path)?;
+    download_file_if_needed(index_url, &index_path).await?;
 
     let index_json = std::fs::read_to_string(index_path).map_err(|e| e.to_string())?;
     let asset_map: AssetMap = serde_json::from_str(&index_json).map_err(|e| e.to_string())?;
 
-    asset_map.objects.par_iter().for_each(|(_, object)| {
+    for (_, object) in asset_map.objects {
         let hash_prefix = &object.hash[0..2];
         let path = objects_dir.join(hash_prefix).join(&object.hash);
         let url = format!(
             "https://resources.download.minecraft.net/{}/{}",
             hash_prefix, object.hash
         );
-        let _ = download_file_if_needed(&url, &path);
-    });
+        let _ = download_file_if_needed(&url, &path).await;
+    }
     Ok(())
 }
 
@@ -112,20 +114,19 @@ fn get_os_key() -> &'static str {
     }
 }
 
-pub fn download_libraries(libraries_root: &Path, version_json: &str) -> Result<(), String> {
+pub async fn download_libraries(libraries_root: &Path, version_json: &str) -> Result<(), String> {
     let manifest: VersionManifest =
         serde_json::from_str(version_json).map_err(|e| e.to_string())?;
 
     println!("[Download] Total libraries in manifest: {}", manifest.libraries.len());
-    
-    manifest.libraries.par_iter().for_each(|lib| {
+
+    for lib in manifest.libraries {
         match &lib.downloads.artifact {
             Some(artifact) => {
                 let lib_name = &artifact.path;
                 if is_library_allowed(&lib.rules) {
                     println!("[Download] Downloading allowed: {}", lib_name);
-                    let _ =
-                        download_file_if_needed(&artifact.url, &libraries_root.join(&artifact.path));
+                    let _ = download_file_if_needed(&artifact.url, &libraries_root.join(&artifact.path)).await;
                 } else {
                     println!("[Download] Skipping (rules): {}", lib_name);
                 }
@@ -139,7 +140,7 @@ pub fn download_libraries(libraries_root: &Path, version_json: &str) -> Result<(
                                 let _ = download_file_if_needed(
                                     &artifact.url,
                                     &libraries_root.join(&artifact.path),
-                                );
+                                ).await;
                             }
                         }
                     }
@@ -149,7 +150,7 @@ pub fn download_libraries(libraries_root: &Path, version_json: &str) -> Result<(
                 println!("[Download] Library has no artifact entry");
             }
         }
-    });
+    }
     Ok(())
 }
 

@@ -30,18 +30,22 @@ pub fn install_instance(
     let app_handle = app.clone();
     let version_clone = version.clone();
 
-    std::thread::spawn(move || {
-        let run_install = || -> Result<(), String> {
-            let instance_dir = instances_dir.join(&version_clone);
+    tauri::async_runtime::spawn(async move {
+        let run_install = async || -> Result<(), String> {
+            let instance_dir = instances_dir.join(&name_clone);
             let libraries_root = root_dir.join("libraries");
             let assets_root = root_dir.join("assets");
 
             let _ = app_handle.emit("install-status", "Fetching manifest…");
 
             let manifest_url = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-            let manifest: Manifest = reqwest::blocking::get(manifest_url)
+
+            let client = reqwest::Client::new();
+            let manifest: Manifest = client.get(manifest_url)
+                .send().await
                 .map_err(|e| e.to_string())?
                 .json()
+                .await
                 .map_err(|e| e.to_string())?;
 
             let version_entry = manifest
@@ -50,42 +54,31 @@ pub fn install_instance(
                 .find(|v| v.id == version_clone)
                 .ok_or_else(|| format!("Version '{}' not found in manifest", version_clone))?;
 
-            let version_json_text = reqwest::blocking::get(&version_entry.url)
+            let version_json_text = client.get(&version_entry.url)
+                .send().await
                 .map_err(|e| e.to_string())?
                 .text()
+                .await
                 .map_err(|e| e.to_string())?;
 
             std::fs::create_dir_all(&instance_dir).map_err(|e| e.to_string())?;
             std::fs::write(instance_dir.join("version.json"), &version_json_text)
                 .map_err(|e| e.to_string())?;
 
-            let _ = app_handle.emit("install-status", "Downloading client…");
-            utils::download_client_jar(&instance_dir, &version_json_text)?;
+            let _ = app_handle.emit("install-status", "Downloading Client...");
+            utils::download_client_jar(&instance_dir, &version_json_text).await?;
 
-            let _ = app_handle.emit("install-status", "Downloading libraries…");
-            utils::download_libraries(&libraries_root, &version_json_text)?;
+            let _ = app_handle.emit("install-status", "Downloading Libraries...");
+            utils::download_libraries(&libraries_root, &version_json_text).await?;
 
-            let _ = app_handle.emit("install-status", "Downloading assets…");
-            utils::download_assets(&assets_root, &version_json_text)?;
+            let _ = app_handle.emit("install-status", "Downloading Assets...");
+            utils::download_assets(&assets_root, &version_json_text).await?;
 
             Ok(())
         };
 
-        match run_install() {
-            Ok(()) => {
-                if let Ok(mut inst) = get_or_create_instance(&instances_dir, &version_clone) {
-                    inst.install_state = InstallState::Installed;
-                    let _ = persist_instance(&instances_dir, &inst);
-                }
-                let _ = app_handle.emit("install-status", "Installation Complete!");
-            }
-            Err(e) => {
-                if let Ok(mut inst) = get_or_create_instance(&instances_dir, &version_clone) {
-                    inst.install_state = InstallState::Failed;
-                    let _ = persist_instance(&instances_dir, &inst);
-                }
-                let _ = app_handle.emit("install-error", e);
-            }
+        if let Err(e) = run_install().await {
+            let _ = app_handle.emit("install-error", e);
         }
     });
 
