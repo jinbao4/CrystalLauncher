@@ -34,6 +34,26 @@ pub fn launch_instance(
     let manifest: VersionManifest = serde_json::from_str(&version_text)
         .map_err(|e| format!("Invalid version.json: {}", e))?;
 
+    // Find JRE
+    let java_exe = if let Some(java_version) = &manifest.java_version {
+        let jre_dir = p.jres.join(format!("jre{}", java_version.major_version));
+        if jre_dir.exists() {
+            #[cfg(target_os = "windows")]
+            {
+                jre_dir.join("bin").join("javaw.exe")
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                jre_dir.join("bin").join("java")
+            }
+        } else {
+            return Err(format!("JRE {} not found. Please reinstall the instance.", java_version.major_version));
+        }
+    } else {
+        // Fallback to system java
+        "java".into()
+    };
+
     let official_mc = LauncherPaths::official_mc(); 
 
     utils::extract_natives(&libraries_root, &natives_dir, &manifest)?;
@@ -62,7 +82,7 @@ pub fn launch_instance(
 
     println!("Launching {} on {}", instance_name, std::env::consts::OS);
 
-    Command::new("java")
+    Command::new(&java_exe)
         .arg("-Xmx4G")             
         .arg(format!("-Djava.library.path={}", natives_dir.to_string_lossy()))
         .arg("-cp").arg(classpath)

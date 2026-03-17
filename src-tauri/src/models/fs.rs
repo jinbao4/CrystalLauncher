@@ -3,12 +3,14 @@ use std::path::PathBuf;
 pub struct LauncherPaths {
     pub root: PathBuf,     
     pub instances: PathBuf,
+    pub jres: PathBuf,
 }
 
 impl LauncherPaths {
     pub fn new(root: PathBuf) -> Self {
         Self {
             instances: root.join("instances"),
+            jres: root.join("jres"),
             root,
         }
     }

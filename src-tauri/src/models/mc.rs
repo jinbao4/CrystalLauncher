@@ -23,6 +23,8 @@ pub struct VersionManifest {
     pub asset_index: AssetIndexInfo,
     #[serde(rename = "mainClass")]
     pub main_class: String,
+    #[serde(rename = "javaVersion")]
+    pub java_version: Option<JavaVersion>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -81,4 +83,10 @@ pub struct Rule {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OSRestriction {
     pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct JavaVersion {
+    #[serde(rename = "majorVersion")]
+    pub major_version: u32,
 }

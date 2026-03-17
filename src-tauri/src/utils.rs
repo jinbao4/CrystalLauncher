@@ -1,5 +1,5 @@
 use crate::models::mc::{AssetMap, Rule, VersionManifest};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[allow(dead_code)]
 pub fn collect_jars(dir: &Path, jars: &mut Vec<String>) {
@@ -111,6 +111,103 @@ fn get_os_key() -> &'static str {
     else {
         "linux"
     }
+}
+
+pub fn get_adoptium_os() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "mac"
+    } else {
+        "linux"
+    }
+}
+
+pub fn get_adoptium_arch() -> &'static str {
+    if cfg!(target_arch = "x86_64") {
+        "x64"
+    } else if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "x64" // default
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct AdoptiumAsset {
+    binary: AdoptiumBinary,
+}
+
+#[derive(serde::Deserialize)]
+struct AdoptiumBinary {
+    package: AdoptiumPackage,
+}
+
+#[derive(serde::Deserialize)]
+struct AdoptiumPackage {
+    link: String,
+}
+
+pub fn download_jre(jres_root: &Path, major_version: u32) -> Result<PathBuf, String> {
+    let jre_dir = jres_root.join(format!("jre{}", major_version));
+    if jre_dir.exists() {
+        return Ok(jre_dir);
+    }
+
+    let os = get_adoptium_os();
+    let arch = get_adoptium_arch();
+    let url = format!("https://api.adoptium.net/v3/assets/latest/{}/hotspot?os={}&arch={}&image_type=jre", major_version, os, arch);
+
+    let client = reqwest::blocking::Client::new();
+    let response: Vec<AdoptiumAsset> = client.get(&url)
+        .send()
+        .map_err(|e| e.to_string())?
+        .json()
+        .map_err(|e| e.to_string())?;
+
+    if response.is_empty() {
+        return Err(format!("No JRE found for version {}", major_version));
+    }
+
+    let download_url = &response[0].binary.package.link;
+    let filename = format!("jre{}-{}-{}.{}", major_version, os, arch, if cfg!(target_os = "windows") { "zip" } else { "tar.gz" });
+    let archive_path = jres_root.join(&filename);
+
+    download_file_if_needed(download_url, &archive_path)?;
+
+    // Extract the archive
+    std::fs::create_dir_all(&jre_dir).map_err(|e| e.to_string())?;
+    if cfg!(target_os = "windows") {
+        // Use zip
+        let file = std::fs::File::open(&archive_path).map_err(|e| e.to_string())?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+            let path = file.mangled_name();
+            let out_path = jre_dir.join(path);
+            if file.is_dir() {
+                std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+            } else {
+                if let Some(parent) = out_path.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                let mut out_file = std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
+                std::io::copy(&mut file, &mut out_file).map_err(|e| e.to_string())?;
+            }
+        }
+    } else {
+        // Use tar.gz
+        use std::process::Command;
+        Command::new("tar")
+            .args(&["-xzf", &archive_path.to_string_lossy(), "-C", &jre_dir.to_string_lossy()])
+            .status()
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Clean up archive
+    std::fs::remove_file(&archive_path).map_err(|e| e.to_string())?;
+
+    Ok(jre_dir)
 }
 
 pub fn download_libraries(libraries_root: &Path, version_json: &str) -> Result<(), String> {
