@@ -55,21 +55,21 @@ pub fn install_instance(
             let _ = app_handle.emit("install-status", "Downloading Client...");
             utils::download_client_jar(&instance_dir, &version_json_text)?;
 
-            let _ = app_handle.emit("install-status", "Downloading Libraries...");
+            let _ = app_handle.emit("install-status", "Downloading libraries...");
             utils::download_libraries(&libraries_root, &version_json_text)?;
 
-            let _ = app_handle.emit("install-status", "Downloading Assets...");
+            let _ = app_handle.emit("install-status", "Downloading assets...");
             utils::download_assets(&assets_root, &version_json_text)?;
 
-            // Download JRE if specified
             let version_manifest: VersionManifest = serde_json::from_str(&version_json_text)
                 .map_err(|e| e.to_string())?;
+            
             if let Some(java_version) = version_manifest.java_version {
-                let _ = app_handle.emit("install-status", &format!("Downloading JRE {}...", java_version.major_version));
-                utils::download_jre(jres_dir, java_version.major_version)?;
+                let _ = app_handle.emit("install-status", &format!("Installing JRE {}...", java_version.major_version));
+                utils::download_jre(&jres_dir, java_version.major_version)?;
             }
 
-            let _ = app_handle.emit("install-status", "Installation Complete!");
+            let _ = app_handle.emit("install-status", "Installation complete!");
             Ok(())
         };
 

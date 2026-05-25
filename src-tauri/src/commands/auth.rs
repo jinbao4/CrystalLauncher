@@ -122,7 +122,6 @@ async fn perform_handshake(code: &str) -> Result<MinecraftAccount, String> {
     Ok(account)
 }
 
-// shit code 
 async fn perform_minecraft_login(client: &Client, msa_token: &str) -> Result<MinecraftAccount, String> {
     
     let mut headers = HeaderMap::new();

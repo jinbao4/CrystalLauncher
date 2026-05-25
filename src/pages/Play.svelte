@@ -35,7 +35,11 @@
 
 	async function handleLaunch() {
 		if (!selectedInstance || !account) return;
-		await launchInstance(selectedInstance, account);
+		try {
+			await launchInstance(selectedInstance, account);
+		} catch (error) {
+			alert(`Launch failed: ${error}`);
+		}
 	}
 </script>
 

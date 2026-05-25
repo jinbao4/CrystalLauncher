@@ -34,23 +34,30 @@ pub fn launch_instance(
     let manifest: VersionManifest = serde_json::from_str(&version_text)
         .map_err(|e| format!("Invalid version.json: {}", e))?;
 
-    // Find JRE
     let java_exe = if let Some(java_version) = &manifest.java_version {
-        let jre_dir = p.jres.join(format!("jre{}", java_version.major_version));
-        if jre_dir.exists() {
-            #[cfg(target_os = "windows")]
-            {
+        let (jre_root, jre_dir, java_path) = {
+            let jre_root = p.jres.clone();
+            let jre_dir = p.jres.join(format!("jre{}", java_version.major_version));
+            let java_path = if cfg!(target_os = "windows") {
                 jre_dir.join("bin").join("javaw.exe")
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
+            } else {
                 jre_dir.join("bin").join("java")
+            };
+            (jre_root, jre_dir, java_path)
+        };
+        
+        if !java_path.exists() {
+            drop(p);
+            utils::download_jre(&jre_root, java_version.major_version)
+                .map_err(|e| format!("Failed to auto-download JRE: {}", e))?;
+            
+            if !java_path.exists() {
+                return Err(format!("JRE {} installation failed", java_version.major_version));
             }
-        } else {
-            return Err(format!("JRE {} not found. Please reinstall the instance.", java_version.major_version));
         }
+        
+        java_path
     } else {
-        // Fallback to system java
         "java".into()
     };
 
@@ -98,7 +105,7 @@ pub fn launch_instance(
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(|e| format!("Launch failed: {}. Is Java installed?", e))?;
+        .map_err(|e| format!("Failed to launch game: {}. Is Java installed?", e))?;
 
     Ok(())
 }

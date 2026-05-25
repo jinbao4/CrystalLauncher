@@ -68,7 +68,7 @@
 		installStatus = `Starting installation of ${instanceName} (${selectedVersion})...`;
 
 		try {
-			await installInstance(instanceName, selectedVersion, selectedVersion);
+			await installInstance(instanceName, selectedVersion);
 		} catch (error) {
 			installStatus = `Installation failed: ${error}`;
 			isInstalling = false;

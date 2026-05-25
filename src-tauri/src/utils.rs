@@ -24,6 +24,7 @@ pub fn get_classpath_separator() -> &'static str {
 }
 
 pub fn download_file_if_needed(url: &str, path: &Path) -> Result<(), String> {
+    // Skip if file already exists and has content
     if path.exists() {
         if let Ok(meta) = std::fs::metadata(path) {
             if meta.len() > 0 {
@@ -35,7 +36,7 @@ pub fn download_file_if_needed(url: &str, path: &Path) -> Result<(), String> {
     let client = reqwest::blocking::Client::new();
     let bytes = client.get(url)
         .send()
-        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("Failed to download {}: {}", url, e))?
         .bytes()
         .map_err(|e| e.to_string())?;
 
@@ -64,20 +65,26 @@ pub fn download_assets(assets_root: &Path, version_json: &str) -> Result<(), Str
     let index_path = assets_root
         .join("indexes")
         .join(format!("{}.json", manifest.asset_index.id));
+    
     download_file_if_needed(index_url, &index_path)?;
 
     let index_json = std::fs::read_to_string(index_path).map_err(|e| e.to_string())?;
     let asset_map: AssetMap = serde_json::from_str(&index_json).map_err(|e| e.to_string())?;
 
-    for (_, object) in asset_map.objects {
-        let hash_prefix = &object.hash[0..2];
-        let path = objects_dir.join(hash_prefix).join(&object.hash);
-        let url = format!(
-            "https://resources.download.minecraft.net/{}/{}",
-            hash_prefix, object.hash
-        );
-        let _ = download_file_if_needed(&url, &path);
-    }
+    use rayon::prelude::*;
+    asset_map
+        .objects
+        .par_iter()
+        .try_for_each(|(_, object)| {
+            let hash_prefix = &object.hash[0..2];
+            let path = objects_dir.join(hash_prefix).join(&object.hash);
+            let url = format!(
+                "https://resources.download.minecraft.net/{}/{}",
+                hash_prefix, object.hash
+            );
+            download_file_if_needed(&url, &path)
+        })?;
+
     Ok(())
 }
 
@@ -150,8 +157,18 @@ struct AdoptiumPackage {
 
 pub fn download_jre(jres_root: &Path, major_version: u32) -> Result<PathBuf, String> {
     let jre_dir = jres_root.join(format!("jre{}", major_version));
+    
+    // Check if JRE already exists and is valid
     if jre_dir.exists() {
-        return Ok(jre_dir);
+        let java_exe = if cfg!(target_os = "windows") {
+            jre_dir.join("bin").join("javaw.exe")
+        } else {
+            jre_dir.join("bin").join("java")
+        };
+        if java_exe.exists() {
+            return Ok(jre_dir);
+        }
+        std::fs::remove_dir_all(&jre_dir).map_err(|e| e.to_string())?;
     }
 
     let os = get_adoptium_os();
@@ -161,12 +178,12 @@ pub fn download_jre(jres_root: &Path, major_version: u32) -> Result<PathBuf, Str
     let client = reqwest::blocking::Client::new();
     let response: Vec<AdoptiumAsset> = client.get(&url)
         .send()
-        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("Failed to fetch JRE {}: {}", major_version, e))?
         .json()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Invalid JRE metadata response: {}", e))?;
 
     if response.is_empty() {
-        return Err(format!("No JRE found for version {}", major_version));
+        return Err(format!("JRE {} not available for {} architecture", major_version, arch));
     }
 
     let download_url = &response[0].binary.package.link;
@@ -175,16 +192,21 @@ pub fn download_jre(jres_root: &Path, major_version: u32) -> Result<PathBuf, Str
 
     download_file_if_needed(download_url, &archive_path)?;
 
-    // Extract the archive
-    std::fs::create_dir_all(&jre_dir).map_err(|e| e.to_string())?;
+    // Extract to temp location
+    let temp_extract = jres_root.join(format!("jre{}-temp", major_version));
+    if temp_extract.exists() {
+        std::fs::remove_dir_all(&temp_extract).map_err(|e| e.to_string())?;
+    }
+    std::fs::create_dir_all(&temp_extract).map_err(|e| e.to_string())?;
+    
     if cfg!(target_os = "windows") {
-        // Use zip
-        let file = std::fs::File::open(&archive_path).map_err(|e| e.to_string())?;
-        let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+        let file = std::fs::File::open(&archive_path).map_err(|e| format!("Failed to open JRE archive: {}", e))?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Failed to read JRE archive: {}", e))?;
+        
         for i in 0..archive.len() {
             let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
             let path = file.mangled_name();
-            let out_path = jre_dir.join(path);
+            let out_path = temp_extract.join(&path);
             if file.is_dir() {
                 std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
             } else {
@@ -196,16 +218,42 @@ pub fn download_jre(jres_root: &Path, major_version: u32) -> Result<PathBuf, Str
             }
         }
     } else {
-        // Use tar.gz
         use std::process::Command;
         Command::new("tar")
-            .args(&["-xzf", &archive_path.to_string_lossy(), "-C", &jre_dir.to_string_lossy()])
+            .args(&["-xzf", &archive_path.to_string_lossy(), "-C", &temp_extract.to_string_lossy()])
             .status()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Failed to extract JRE: {}", e))?;
     }
 
-    // Clean up archive
-    std::fs::remove_file(&archive_path).map_err(|e| e.to_string())?;
+    // Unwrap top-level directory if needed
+    let entries: Vec<_> = std::fs::read_dir(&temp_extract)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .collect();
+
+    let jre_source = if entries.len() == 1 && entries[0].path().is_dir() {
+        entries[0].path().clone()
+    } else {
+        temp_extract.clone()
+    };
+
+    // Verify valid JRE structure
+    let bin_dir = jre_source.join("bin");
+    if !bin_dir.exists() {
+        return Err(format!("Invalid JRE structure: missing bin directory"));
+    }
+    
+    if jre_dir.exists() {
+        std::fs::remove_dir_all(&jre_dir).map_err(|e| e.to_string())?;
+    }
+    
+    std::fs::rename(&jre_source, &jre_dir)
+        .map_err(|e| format!("Failed to install JRE: {}", e))?;
+
+    if temp_extract.exists() {
+        let _ = std::fs::remove_dir_all(&temp_extract);
+    }
+    std::fs::remove_file(&archive_path).ok();
 
     Ok(jre_dir)
 }
@@ -214,39 +262,38 @@ pub fn download_libraries(libraries_root: &Path, version_json: &str) -> Result<(
     let manifest: VersionManifest =
         serde_json::from_str(version_json).map_err(|e| e.to_string())?;
 
-    println!("[Download] Total libraries in manifest: {}", manifest.libraries.len());
-
+    // Collect all downloads to perform
+    let mut downloads = Vec::new();
+    
     for lib in manifest.libraries {
         match &lib.downloads.artifact {
             Some(artifact) => {
-                let lib_name = &artifact.path;
                 if is_library_allowed(&lib.rules) {
-                    println!("[Download] Downloading allowed: {}", lib_name);
-                    let _ = download_file_if_needed(&artifact.url, &libraries_root.join(&artifact.path));
-                } else {
-                    println!("[Download] Skipping (rules): {}", lib_name);
+                    downloads.push((artifact.url.clone(), libraries_root.join(&artifact.path)));
                 }
 
                 if let Some(natives_map) = &lib.natives {
                     let os_key = get_os_key();
-
                     if let Some(classifier_key) = natives_map.get(os_key) {
                         if let Some(classifiers) = &lib.downloads.classifiers {
                             if let Some(artifact) = classifiers.get(classifier_key) {
-                                let _ = download_file_if_needed(
-                                    &artifact.url,
-                                    &libraries_root.join(&artifact.path),
-                                );
+                                downloads.push((artifact.url.clone(), libraries_root.join(&artifact.path)));
                             }
                         }
                     }
                 }
             }
-            None => {
-                println!("[Download] Library has no artifact entry");
-            }
+            None => {}
         }
     }
+
+    let total_downloads = downloads.len();
+
+    use rayon::prelude::*;
+    downloads
+        .par_iter()
+        .try_for_each(|(url, path)| download_file_if_needed(url, path))?;
+
     Ok(())
 }
 

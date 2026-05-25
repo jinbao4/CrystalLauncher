@@ -10,8 +10,11 @@ export async function listInstances(): Promise<string[]> {
 	}
 }
 
-export async function installInstance(instanceName: string, mcVersion: string, version: string): Promise<void> {
-	await invoke('install_instance', { instanceName, mcVersion, version });
+export async function installInstance(
+	instanceName: string,
+	version: string
+): Promise<void> {
+	await invoke('install_instance', { instanceName, version });
 }
 
 export async function launchInstance(
